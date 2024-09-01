@@ -3,24 +3,44 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rendering local images</title>
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0-beta1/dist/css/bootstrap.min.css" rel="stylesheet"> 
     <link href="{{url_for('static', filename='styles/style.css')}}" rel="stylesheet" />
+    <title>Rendering local images</title>
 </head>
 <body>
-    <h1>Rendering local images</h1>
-    <form action="{{url_for('upload_file')}}" enctype="multipart/form-data" method="POST">
-        <input type="file" name="img" id="img" />
-        <!-- <button type="submit">Show</button> -->
-         <input type="submit"/>
-    </form>
+    <div class="container">
+        <div class="row">
+            <div class="col-6 mx-auto mt-5 text-center">
+                <h1 class="mb-5">Rendering local images</h1>
+                <form method="post" enctype="multipart/form-data" >
+                    {{ form.hidden_tag() }}
+                    {% for error in form.photo.errors %}
+                        <span style="color: red; font-style: italic;"> {{ error }}</span>
+                    {% endfor %}
+                    <div class="row justify-content-center">
+                        <div class="col-auto">
+                            {{ form.photo(class="form-control") }}
+                        </div>
+                        <div class="col-auto">
+                            {{ form.submit(class="btn btn-success")  }}
+                        </div>
+                    </div>
+                </form>
+                {% if file_url %}
+                    <div class="mt-5">
+                        <img src="{{ file_url }}" style="width: 400px;"/>
+                    </div>
+                {% endif %}
 
-    {% if img %}
-    <h1>Rendered Image</h1>
-    <img src="{{img}}">
-    {% else %}
-    <h1>Image will be render here...</h1>
-    {% endif %}
-    <!-- <img src="{{url_for('static', filename='test_images/46128714_00-original_image.png')}}" /> -->
-    <!-- <img src="{{image}}" /> -->
+            </div>
+        </div>
+    </div>
+
+
+
+
+    
+    
 </body>
 </html>
