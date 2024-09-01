@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rendering local images</title>
+    <link href="{{url_for('static', filename='styles/style.css')}}" rel="stylesheet" />
+</head>
+<body>
+    <h1>Rendering local images</h1>
+    <form action="{{url_for('upload_file')}}" enctype="multipart/form-data" method="POST">
+        <input type="file" name="img" id="img" />
+        <!-- <button type="submit">Show</button> -->
+         <input type="submit"/>
+    </form>
+
+    {% if img %}
+    <h1>Rendered Image</h1>
+    <img src="{{img}}">
+    {% else %}
+    <h1>Image will be render here...</h1>
+    {% endif %}
+    <!-- <img src="{{url_for('static', filename='test_images/46128714_00-original_image.png')}}" /> -->
+    <!-- <img src="{{image}}" /> -->
+</body>
+</html>
