@@ -13,19 +13,17 @@
         <div class="row">
             <div class="col-6 mx-auto mt-5 text-center">
                 <h1 class="mb-5">Rendering local images</h1>
-                <form method="post" enctype="multipart/form-data" >
-                    {{ form.hidden_tag() }}
-                    {% for error in form.photo.errors %}
-                        <span style="color: red; font-style: italic;"> {{ error }}</span>
-                    {% endfor %}
-                    <div class="row justify-content-center">
-                        <div class="col-auto">
-                            {{ form.photo(class="form-control") }}
+                <form action="/" method="post" enctype="multipart/form-data" >
+                    <div class="row justify-content-center input-group">
+                        
+                        <div class="col">
+                            <input type="file" class="form-control" id="file" name="file">
                         </div>
-                        <div class="col-auto">
-                            {{ form.submit(class="btn btn-success")  }}
-                        </div>
+                        <div class="col">
+                            <button type="submit" class="btn btn-primary">Submit</button>
+                        </div>    
                     </div>
+                    
                 </form>
                 {% if file_url %}
                     <div class="mt-5">
@@ -36,10 +34,6 @@
             </div>
         </div>
     </div>
-
-
-
-
     
     
 </body>
