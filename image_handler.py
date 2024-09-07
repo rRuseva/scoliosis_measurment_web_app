@@ -5,6 +5,19 @@ import pydicom as dicom
 import numpy as np
 
 
+def validate_is_dicom(file_content: bytes) -> bool:
+    """Gets a byte type object and checks if the content from position 128 till 132 
+    mathes the tag 'DICM' for DICOM files.
+
+    Args:
+        file_content (bytes): File to be validated
+
+    Returns:
+        bool: True if the content from 128 till 132 mathces 'DICM' tag
+    """
+    print("Validating if the file has a DICM tag ...")
+    return file_content[128:132] == b'DICM'
+
 def read_all_images(image_directory):
 
     if not os.path.exists(image_directory):
@@ -46,7 +59,8 @@ def read_all_images(image_directory):
 
 def parse_image_file(filename):
     print(f"parsing image: {filename}")
-    filename_rel_path = os.path.join('uploads',filename)
+    # filename_rel_path = os.path.join('uploads',filename)
+    filename_rel_path = f"uploads\\{filename}"
 
     if re.search("\\.|jpg|png|jepg|dcm",filename, re.I):
         name =  filename.split('.')

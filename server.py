@@ -7,71 +7,86 @@ from werkzeug.utils import secure_filename
 from waitress import serve
 import os
 import image_handler as ih
+from typing import Tuple
+
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'ewrfewr'
 app.config['UPLOAD_FOLDER'] = 'uploads'
 
+ALLOWED_EXTENSIONS = ['png', 'jpg', 'jpeg']
 # photos = UploadSet('photos', IMAGES)
 # configure_uploads(app, photos)
-ALLOWED_EXTENSIONS = ['png', 'jpg', 'jpeg', '']
 
-def allowed_file(filename):
+def allowed_file(file, filename:str) -> Tuple[bool, bool]:
+    """Validates if the file is within the allowed files to be uploaded.
+    DICOM files not allways have an file extension therefore the file content needs to be checked
+    if it has the tag 'DICM'
+
+    Args:
+        file (_type_): FileStorage object to be checked
+        filename (str): Filename to be checked
+
+    Returns:
+        bool: True if the file extension is in the list of the allowed ones or the file content has the tag fot DICOM image.
+    """
     if '.' in filename:
-        return filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+        return (filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS, False)
     else:
-        ih.parse_image_file(filename=filename)
-    return True
-    # return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+       # check if it is dicom 
+        return (ih.validate_is_dicom(file.read()), True)
+    
 
-# class UploadForm(FlaskForm):
-#     photo = FileField(
-#         validators=[# FileAllowed(photos, 'Only images are allowed'),
-#                     FileRequired('File field should not be empty')
-#         ]
-#     )
-#     submit = SubmitField('Upload')
+class UploadForm(FlaskForm):
+    file = FileField(
+        validators=[FileRequired('File field should not be empty')]
+    )
+    submit = SubmitField('Upload')
 
-# @app.route(f'/uploads/<filename>')
-# def get_file(filename):
-#     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
-from flask import send_from_directory
 
-@app.route('/uploads/<name>')
-def download_file(name):
-    return send_from_directory(app.config["UPLOAD_FOLDER"], name)
+@app.route(f'/uploads/<filename>')
+def get_file(filename):
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+
+
+# @app.route('/uploads/<name>')
+# def get_file(name):
+#     return send_from_directory(app.config["UPLOAD_FOLDER"], name)
 
 @app.route('/', methods=['GET', 'POST'])
 def upload_file():
+    form = UploadForm()
     file_url=None
     if request.method == 'POST':
         # check if the post request has the file part
-        print("request.files", request.files)
         if 'file' not in request.files:
-            flash('No file part')
+            flash('Error no file recieved...')
             return ('Error no file recieved...')
-        print("request: ", request)
-        file = request.files['file']
-        print("file:",file) 
         
-        # If the user does not select a file, the browser submits an
-        # empty file without a filename.
+        file = form.file.data
+        
+        # check if empty file without a filename is send
         if file.filename == '':
             flash('No selected file')
             return "No selected file..."
-        if file and allowed_file(file.filename):
-            print("file.filename: ",file.filename)
-            
+        
+        if file:
+            is_aallowed, is_dicm = allowed_file(file, file.filename)
             filename = secure_filename(file.filename)
+            print(f"filename: {filename}")
+            # is_file_allowed =  
+            # print(f"is_file_allowed={is_file_allowed}")
+            file_url = url_for('get_file', filename=filename)
+            print(f"file_url: {file_url}")
+
             file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-            file_url = url_for('download_file', name=filename)
+            
 
             # return redirect(url_for('download_file', name=filename))
-            return f"you file is available <a href='/uploads/{filename}'>here</a>"
+            # return f"you file is available <a href='/uploads/{filename}'>here</a>"
         else:
             file_url=None
-    print(file_url)
-    return render_template("index.html")
+    return render_template("index.html", form=form, file_url=file_url)
 
 if __name__ == "__main__":
     serve(app, host="0.0.0.0", port=8000)
