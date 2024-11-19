@@ -1,2 +1,2 @@
-# web_app_for_image_edditing
-Python/ Flask web application for image edditing 
+# web_app_for_scoliosis_measurement
+Python/ Flask web application for measuring spine deformation know as scoliosis
