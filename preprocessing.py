@@ -11,7 +11,7 @@ from scipy.interpolate import PPoly, splder, splev, splrep
 # Automatic brightness and contrast optimization with optional histogram clipping
 # works on greyScale image
 def automatic_brightness_and_contrast(grey_image, clip_hist_percent=1):
-    print("Runing automatic_brightness_and_contrast with clip_hist_percent={}".format(clip_hist_percent))
+    print("Running automatic_brightness_and_contrast with clip_hist_percent={}".format(clip_hist_percent))
 
     # Calculate grayscale histogram
     hist = cv2.calcHist([grey_image],[0],None,[256],[0,256])
@@ -69,7 +69,7 @@ def intensity_projection(grey_image):
     sum_col = cv2.reduce(grey_image, 0, cv2.REDUCE_SUM, dtype=cv2.CV_32S)
     sum_col = sum_col.flat[:]
 
-    ### Calculate horizonal intensity projection
+    ### Calculate horizontal intensity projection
     sum_row = cv2.reduce(grey_image, 1, cv2.REDUCE_SUM, dtype=cv2.CV_32S)
     sum_row = sum_row.flat[:]
     
@@ -145,7 +145,7 @@ def detect_spine(image, sum_col, sum_row):
     # return image_spine
 
 
-### Uses Fourier trasformation to filter high frequency noise
+### Uses Fourier transformation to filter high frequency noise
 def FF_denoising(image, r=8, hpf=0):
     print("Runing FF_denoising with r={} and hpf={} \n".format(r, hpf))
     image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -176,7 +176,7 @@ def FF_denoising(image, r=8, hpf=0):
     img_back = cv2.magnitude(img_back[:, :, 0], img_back[:, :, 1])
 
     
-    ### reconstruct and normilize image values
+    ### reconstruct and normalize image values
     min, max =np.amin(image, (0,1)), np.amax(image, (0,1))
     min, max = np.amin(img_back, (0,1)), np.amax(img_back, (0,1))
     img_back = cv2.normalize(img_back,None, alpha=0, beta=252, norm_type=cv2.NORM_MINMAX,dtype=cv2.CV_8U)
@@ -198,7 +198,7 @@ def FF_denoising(image, r=8, hpf=0):
 
 # Contrast Limited Adaptive Histogram Equalization
 def adaptive_equalization(image, clip_limit=2, tile_size=(16, 16)):
-    print("Runing adaptive_equalization with clip_limit={} and tile_size={}".format(clip_limit, tile_size))
+    print("Running adaptive_equalization with clip_limit={} and tile_size={}".format(clip_limit, tile_size))
     hist_eq = cv2.createCLAHE(clipLimit=clip_limit, tileGridSize=tile_size)
     equalized_image = hist_eq.apply(image)    
 

@@ -59,10 +59,6 @@ def get_upload_file(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 
-# @app.route(f'/temp/<filename>')
-# def get_temp_file(filename):
-#     return send_from_directory(app.config['TEMP_FOLDER'], filename)
-
 @app.route(f'/temp/<filename>')
 def get_processed(filename):
     print(f"processed images: filename={filename}")
@@ -73,12 +69,15 @@ def upload_file():
     form = UploadForm()
     file_url=None
     result_images = []
+    result_cob_angles = []
+    result_apex = []
+    filename = ' '
     clear_temp_folder()
     if request.method == 'POST':
         # check if the post request has the file part
         if 'file' not in request.files:
-            flash('Error no file recieved...')
-            return ('Error no file recieved...')
+            flash('Error no file received...')
+            return ('Error no file received...')
         
         file = form.file.data
         # check if empty file without a filename is send
@@ -101,7 +100,9 @@ def upload_file():
             # result_url =  url_for('get_temp_file', filename=filename)
             # file_url = url_for('get_temp_file', filename=filename)
             if is_allowed:
-                ih.process_image(filename, app.config['UPLOAD_FOLDER'], app.config['TEMP_FOLDER'])
+                result = ih.process_image(filename, app.config['UPLOAD_FOLDER'], app.config['TEMP_FOLDER'])
+                result_cob_angles = [round(res[2], 5) for res in result ]
+                result_apex = [(round(res[0], 5) , round(res[1], 5) ) for res in result ]
 
                 for filename in os.listdir(app.config['TEMP_FOLDER']):
                     result_images.append( (filename, url_for('get_processed', filename=filename)))
@@ -110,7 +111,14 @@ def upload_file():
         else:
             file_url=None
             print(f"File {filename} not uploaded")
-    return render_template("index.html", form=form, file_url=file_url, images=result_images)
+    return render_template("index.html",
+                           form=form,
+                           file_url=file_url,
+                           images=result_images,
+                           cob_angles=result_cob_angles,
+                           apices = result_apex,
+                           number_of_angles=len(result_cob_angles),
+                           original_image_name=filename.split('.')[0])
 
 if __name__ == "__main__":
     serve(app, host="0.0.0.0", port=8000)
