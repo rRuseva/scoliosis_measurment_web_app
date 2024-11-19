@@ -4,47 +4,55 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0-beta1/dist/css/bootstrap.min.css" rel="stylesheet"> 
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0-beta1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href=" {{url_for('static', filename='lightbox/dist/css/lightbox.min.css')}} " rel="stylesheet" />
     <link href="{{url_for('static', filename='styles/style.css')}}" rel="stylesheet" />
-    <title>Rendering local images</title>
+
+    <title>Process DICOM images</title>
 </head>
 <body>
-    <div class="container">
-        <div class="row">
-            <div class="col-6 mx-auto mt-5 text-center">
-                <h1 class="mb-5">Rendering local images</h1>
+    <div class="container gallery-container">
+        <div class="row justify-content-center">
+            <div class="text-center page-description text-center ">
+                <h1 class="mb-5">Process DICOM images </h1>
+            </div>
+            <div class="justify-content-center input-group">
                 <form method="post" enctype="multipart/form-data" >
                     {{ form.hidden_tag() }}
                     {% for error in form.file.errors %}
                         <span style="color: red; font-style: italic;"> {{ error }}</span>
                     {% endfor %}
-                    <div class="row justify-content-center input-group">
-                        <div class="col-auto">
-                            <input type="file" class="form-control" id="file" name="file">
-                        </div>
-                        <div class="col-auto">
-                            <button type="submit" class="btn btn-success">Submit</button>
+                    <div class="input-group justify-content-center">
+                        <input type="file" class="form-control" id="file" name="file">
+                        <div class="input-group-append">
+                            <button type="submit" class="btn btn-dark">Submit</button>
                         </div>    
                     </div>
-                </form>
-                {% if file_url %}
-                    <div class="mt-5">
-                        <img src="{{ file_url }}" style="width: 400px;"/>
-                    </div>
-                {% endif %}
-                
+                </form>                
             </div>
         </div>
-        <div class="row">
+
+        <div class="row justify-content-center py-4">
             {% for image_name, image_url in images %}
-            <div class="col-sm-2 align-items-center justify-content-center">
-                <img src="{{ image_url }}" class="img img-thumbnail mx-auto">
-                <h5>{{ image_name }}</h5>
+            <div class="col-sm-4 justify-content-center">
+                <h5 class="my-2 image_name">{{ image_name }}</h5>
+                <a class="" href=" {{ image_url }} " data-lightbox="result-images" data-title="{{ image_name }}">
+                    <img src=" {{ image_url }} " alt="{{ image_name }} class="img img-thumbnail mx-auto">
+                </a>
             </div>
             {% endfor %}
         </div>
     </div>
-    
-    
+
+
+    <script src="{{url_for('static', filename='lightbox/dist/js/lightbox-plus-jquery.min.js')}}"></script>
+    <script>
+        lightbox.option({
+          'resizeDuration': 500,
+          'wrapAround': false
+        })
+    </script>
+
 </body>
 </html>
