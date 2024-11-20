@@ -9,13 +9,13 @@
     <link href=" {{url_for('static', filename='lightbox/dist/css/lightbox.min.css')}} " rel="stylesheet" />
     <link href="{{url_for('static', filename='styles/style.css')}}" rel="stylesheet" />
 
-    <title>Process DICOM images</title>
+    <title>Scoliosis measurement</title>
 </head>
 <body>
     <div class="container gallery-container">
         <div class="row justify-content-center">
             <div class="text-center page-description text-center ">
-                <h1 class="mb-5">Process DICOM images </h1>
+                <h1 class="mb-5">Automatic scoliosis measurement</h1>
             </div>
             <div class="justify-content-center input-group">
                 <form method="post" enctype="multipart/form-data" >
@@ -33,22 +33,24 @@
             </div>
         </div>
         {% if number_of_angles > 0 %}
-        <div class="row justify-content-center py-4">
+        <div class="row py-4">
             <h4 class="my-3 ">For spine image {{ original_image_name }} {{number_of_angles}} angles are found</h4>
-            <div class="col-sm-4 justify-content-center">
+            <div class="col-sm-4 justify-content-left text-start">
                 {% for i in range(number_of_angles) %}
-                <h5 class="my-2">{{i}}: Cob angle at apex: {{apices[i]}}: &emsp;{{cob_angles[i]}}&deg</h5>
+                <h5 class="my-2 text-start">{{i}}: Cob angle at apex: {{apices[i]}}: &emsp;{{cob_angles[i]}}&deg</h5>
                 {% endfor %}
             </div>
-            <div class="col-sm-8 justify-content-center">
+            <!-- <div class="col-sm-8 "> -->
             {% for image_name, image_url in images %}
-                {% if image_name.find('tangents.png') > 0 %}
-                <a class="" href=" {{ image_url }} " data-lightbox="result-images" data-title="{{ image_name }}">
-                    <img src=" {{ image_url }} " alt="{{ image_name }}" class="img img-thumbnail mx-auto">
-                </a>
+                {% if image_name.find('tangents.png') > 0 or image_name.find('cob.png') > 0  %}
+                <div class="col-sm-4 justify-content-center">
+                    <a class="" href=" {{ image_url }} " data-lightbox="result-images" data-title="{{ image_name }}">
+                        <img src=" {{ image_url }} " alt="{{ image_name }}" class="img img-thumbnail mx-auto">
+                    </a>
+                </div>
                 {% endif %}
             {% endfor %}
-            </div>
+            <!-- </div> -->
         </div>
         <div class="row justify-content-center py-4">
             {% for image_name, image_url in images %}

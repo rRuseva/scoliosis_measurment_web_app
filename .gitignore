@@ -5,3 +5,5 @@ __pycache__
 # ignore the temporary image files
 *.jpg
 *.png
+uploads/*
+temp/*

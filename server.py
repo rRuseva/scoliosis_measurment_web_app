@@ -21,7 +21,7 @@ ALLOWED_EXTENSIONS = ['png', 'jpg', 'jpeg']
 
 def allowed_file(file, filename:str) -> Tuple[bool, bool]:
     """Validates if the file is within the allowed files to be uploaded.
-    DICOM files not allways have an file extension therefore the file content needs to be checked
+    DICOM files not always have an file extension therefore the file content needs to be checked
     if it has the tag 'DICM'
 
     Args:
@@ -61,7 +61,7 @@ def get_upload_file(filename):
 
 @app.route(f'/temp/<filename>')
 def get_processed(filename):
-    print(f"processed images: filename={filename}")
+    print(f"Processed image: filename={filename}")
     return send_from_directory(app.config['TEMP_FOLDER'], filename)
 
 @app.route('/', methods=['GET', 'POST'])
@@ -106,8 +106,8 @@ def upload_file():
 
                 for filename in os.listdir(app.config['TEMP_FOLDER']):
                     result_images.append( (filename, url_for('get_processed', filename=filename)))
-                    print(filename)
-            
+                    # print(filename)
+                result_images.sort()      
         else:
             file_url=None
             print(f"File {filename} not uploaded")
