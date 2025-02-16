@@ -7,7 +7,9 @@ import matplotlib
 matplotlib.use('Agg')
 from matplotlib import pyplot as plt
 import pydicom as dicom
+
 from io import BytesIO
+from pathlib import Path
 import preprocessing as pr 
 import computation as compute
 from computation import Point, Line
@@ -34,14 +36,17 @@ def save_dicom(file_name: str, file_content: bytes) -> None:
         file_content (bytes): image content
     """
     print("Saving file content as DICOM file ...")
-    dataset = dicom.dcmread(BytesIO(file_content))
-    print(dataset.is_implicit_VR)
+    dataset_to_write = dicom.dcmread(BytesIO(file_content))
+    print(dataset_to_write.is_implicit_VR)
     
     # remove sensitive information in DICOM metadata as patient Name, ID, age, birth date and sex
-    dataset = anonymise_dicom_data(dataset=dataset)
+    dataset_to_write = anonymise_dicom_data(dataset=dataset_to_write)
     
     # dicom.filewriter.write_file(file_name, file_content, False)
-    dicom.dcmwrite(filename=file_name, dataset=dataset, write_like_original=True)
+    file_name = Path(file_name)
+    dicom.dcmwrite(filename=file_name, dataset=dataset_to_write, write_like_original=True)
+    # TODO: change when pydicom version > 3.0.0 
+    # dicom.dcmwrite(filename=file_name, dataset=dataset, enforce_file_format=True)
 
 
 def anonymise_dicom_data(dataset: dicom.FileDataset) ->  dicom.FileDataset:
@@ -51,7 +56,7 @@ def anonymise_dicom_data(dataset: dicom.FileDataset) ->  dicom.FileDataset:
         dataset (dicom.FileDataset): Given DICOM image
 
     Returns:
-        dicom.FileDataset: Same data set as the given one, but without Pattion information as ID, Name, Sex, Age and birthdate
+        dicom.FileDataset: Same data set as the given one, but without Patient information as ID, Name, Sex, Age and birthdate
     """
     print("Anonymise DICOM data ...")
     dataset.PatientID = None
@@ -59,6 +64,16 @@ def anonymise_dicom_data(dataset: dicom.FileDataset) ->  dicom.FileDataset:
     dataset.PatientSex = None
     dataset.PatientAge = None
     dataset.PatientBirthDate = None
+
+    if dataset.get("StudyDate", None):
+        dataset.StudyDate = None
+    if dataset.get("StudyTime", None):
+        dataset.StudyTime = None
+    if dataset.get("SeriesDate", None):
+        dataset.SeriesDate = None
+    if dataset.get("SeriesTime", None):
+        dataset.SeriesTime = None
+
     return dataset
     
 
