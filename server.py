@@ -64,6 +64,7 @@ def get_processed(filename):
     print(f"Processed image: filename={filename}")
     return send_from_directory(app.config['TEMP_FOLDER'], filename)
 
+
 @app.route('/', methods=['GET', 'POST'])
 def upload_file():
     form = UploadForm()

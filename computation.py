@@ -3,7 +3,10 @@ from dataclasses import dataclass
 
 import numpy as np
 from matplotlib import pyplot as plt
-from scipy.interpolate import PPoly, splder, splev, splrep
+from scipy.interpolate import PPoly, splder, splev, splrep, make_splrep, sproot
+from skimage.feature import hog
+from sklearn.metrics.pairwise import cosine_similarity
+import cv2
 
 
 @dataclass
@@ -53,7 +56,7 @@ class AngleBetweenTangents:
 	measure: float
 
 
-def compute_cob_angles(points: list, xb, xe, spline_degree = 5):
+def compute_cob_angles(points: list, xb, xe, smoothing, spline_degree = 5):
 	"""_summary_
 
 	Args:
@@ -69,17 +72,10 @@ def compute_cob_angles(points: list, xb, xe, spline_degree = 5):
 	xs = [int(points['y'][i]) for i in points.index]
 	n = len(ys)
 
-	smoothing = n - math.sqrt(2 * n)
-
-	# print(f"Number of data points: {n}")
-
 	# ### Define B-spline representation of central line points representing the spine curve
-	# k = the degree of the spline; 
-	# xb, xe - the interval to fit
-	spine_curve = splrep(xs, ys, k=spline_degree, s=smoothing, xb=xb, xe=xe)
-
+	spine_curve = make_splrep(xs, ys, k=spline_degree, s=smoothing)
 	# Define first derivative equation of the spline representation of the spine curve 
-	spine_der = splder(spine_curve)
+	spine_der = splder(spine_curve, n=1)
 
 	# Construct evenly spaced samples, calculated over the interval for displaying b-spline curve
 	xx, xx_step = np.linspace(xs[0], xs[-1], xs[-1]-xs[0], retstep=True)
@@ -93,21 +89,19 @@ def compute_cob_angles(points: list, xb, xe, spline_degree = 5):
 	# discontinuity - whether to report sign changes across discontinuities at breakpoints as roots
 	# extrapolate - whether to return roots from polynomial extrapolated based on first and last intervals
 	extremums_x = ppoly.roots(discontinuity=False, extrapolate=False)
+	extremums_x = np.sort(extremums_x)
 
 	extremums_x = np.insert(arr=extremums_x, obj=0, values=xx[0])
 	extremums_x = np.insert(arr=extremums_x, obj=len(extremums_x), values=xx[-1])
-	
+
 	extremums_y = splev(extremums_x, spine_curve)
-	print(f"Number of extremums: ({extremums_x.shape[0]}, {extremums_y.shape[0]})")
-	# print(f"extremums x: \n{extremums_x}")
-	# print(f"extremums y: \n{extremums_y}")
+	# print(f"The number of extremums: ({extremums_x.shape[0]}, {extremums_y.shape[0]})")
 
 	len_extremums = len(extremums_x)
 	max_angles = []
 	min_x = min(xs)
 	max_x = max(xs)
 	epsilon = (max_x-min_x)//2
-	max_angles = []
 
 	# for each extremum	look at both sides and collect tangent lines as tuple of [(x, y), (slope, coefficient)]
     # for each combination of tangents calculate the angle and find the maximum
@@ -132,12 +126,12 @@ def compute_cob_angles(points: list, xb, xe, spline_degree = 5):
 		# print(f"For extremum[{k}] found {len(angles)} angles")
 		if len(angles) > 0:
 			max_angle = max(angles, key=lambda x: x.measure)
-			print(f"For extremum[{k}] max angle is: {max_angle}")
+			# print(f"For extremum[{k}] max angle is: {max_angle}")
 
 			# epsilon = epsilon//2
 			min_x = extremums_x[k] - epsilon
 			max_x = extremums_x[k] + epsilon
-			# angle: ( (x1,y1, slope1, c1), (x2,y2, slope2, c2), radian)
+
 			# compute the y-coordinate of the line ends
 			y_min_1 = point_eq(min_x, max_angle.t_line_a.slope, max_angle.t_line_a.coefficient)
 			y_max_1 = point_eq(max_x, max_angle.t_line_a.slope, max_angle.t_line_a.coefficient)
@@ -149,24 +143,15 @@ def compute_cob_angles(points: list, xb, xe, spline_degree = 5):
 			line_1 = Line(max_angle.point_a, Point(max_x, y_max_1))
 			line_2 = Line(max_angle.point_b, Point(min_x, y_min_2))
 
-			# if extremums_y[k] > average_extremums_y:
-			# 	line_1 = Line(point_a, Point(max_x, y_max_1))
-			# 	line_2 = Line(point_b, Point(min_x, y_min_2))
-			# else:
-			# 	line_1 = Line(Point(max_x, y_max_1), point_a)
-			# 	line_2 = Line(Point(min_x, y_min_2), point_b )
 
 			max_angles.append(CobAngle(apex=Point(extremums_x[k], extremums_y[k]), 
 							   		     line_a=line_1, line_b=line_2, measure=rad_to_deg(max_angle.measure)))
-			# max_angles_2.append(CobAngle(apex=Point(extremums_x[k], extremums_y[k]), 
-			# 				   		     line_a=Line(Point(min_x, y_min_1), Point(max_x, y_max_1)),
-			# 				   		     line_b=Line(Point(min_x, y_min_2), Point(max_x, y_max_2)),
-			# 				   		     measure=rad_to_deg(max_angle.measure)))
+
 		else:
 			np.delete(extremums_x, k)
 			np.delete(extremums_y, k)
 
-	return(xx, yy, extremums_x[1:-1], extremums_y[1:-1], max_angles)
+	return(xx, yy, extremums_x, extremums_y, max_angles)
 
 
 def tangent_line(curve_derivative: tuple, point: Point) -> tuple[np.ndarray, np.float64]:
@@ -242,12 +227,12 @@ def find_central_line(spine_crop: np.ndarray) : #-> list[Point]:
 	# Return: List with all central points
 
 	print("Finding central line points...")
-	# print(f"spine crop type: {type(spine_crop)}")
 	image_h, image_w = spine_crop.shape
-	window_w = 60
-	window_h = 10
+	window_w = int(image_w*0.4)
+	window_h = 16
 	step_w = 1
-	step_h = 5
+	step_h = 6
+	small_window_w = int(image_w*0.33)
 	# current position of the window
 	c_y = c_x = 0
 
@@ -256,13 +241,23 @@ def find_central_line(spine_crop: np.ndarray) : #-> list[Point]:
 	while c_y < image_h - window_h:
 		# (the maximum sum, the central point of the window with the maximum intensity)
 		max_sum = (0, Point(0, 0))
-		c_x = 0
-		while c_x < image_w - window_w:
+		if len(central_line_points )> 0:
+			prev_point_x = central_line_points[-1].x
+			c_x = prev_point_x - small_window_w
+		else:
+			prev_point_x = 0
+			c_x = 0
+
+		# prev_point_x = 0
+		# c_x = 0
+		# while c_x < image_w - window_w:
+		while c_x < prev_point_x + small_window_w and c_x < image_w - window_w:
 			roi = spine_crop[c_y:c_y+window_h, c_x:c_x+window_w]
 			current_sum  = np.sum(roi)
 			if max_sum[0] < current_sum:
 				curr_x = c_x + window_w//2
-				curr_y = c_y + window_h//2
+				# curr_y = c_y + window_h//2
+				curr_y = c_y
 				max_sum = (current_sum, Point(curr_x, curr_y))
 			c_x += step_w
 		central_line_points.append(max_sum[1])
@@ -270,23 +265,127 @@ def find_central_line(spine_crop: np.ndarray) : #-> list[Point]:
 	return central_line_points
 
 
-def refine_central_line(central_line_points, threshold) -> list[Point]:
-	# Iterates over a list with central line points and if the difference between x position of current and previous point
-	# is above threshold corrects the x position of the current point
+# refine based on hog features of two mirrored rectangles on both sides of central line point
+def refine_central_line_hog(central_line_points, spine_crop: np.ndarray) -> list[Point]:
+	print(f"Refine {len(central_line_points)} central line points via HOG features...")
+	image_h, image_w = spine_crop.shape
+	window_w = int(image_w*0.4)
+	window_w = window_w - 1 if (window_w % 2 != 0) else window_w
+	small_window_w = window_w//2
+	small_window_w = small_window_w - 1 if small_window_w % 2 != 0 else small_window_w
+	window_h = 16
+
 	central_line_points_processed = []
 	prev_x = central_line_points[0].x
-	central_line_points_processed.append(central_line_points[0])
+	step_w = 1
 	i = 1
-	for point in central_line_points[1:]:
+	c_y = c_x = 0
+	for point in central_line_points:
 		prev_point = central_line_points[i-1]
+		c_y = point.y
 
-		diff = point.x - prev_point.x
-		if abs(diff) > threshold:
-			point.x = prev_point.x
-		# point = (curr_x, point[1])
-		central_line_points_processed.append(point)
+		roi_left = spine_crop[c_y:c_y+window_h, point.x-small_window_w:point.x]
+		roi_right = spine_crop[c_y:c_y+window_h, point.x:point.x+small_window_w]	
+
+		if roi_left.shape[1] < 5 or roi_right.shape[1] < 5:
+			initial_similarity = 0
+		else:
+			hog_left = hog(roi_left, orientations=4, pixels_per_cell=(4, 4),
+	           cells_per_block=(2, 2), block_norm='L2-Hys', visualize=False)
+			hog_right_flipped = hog(np.flip(roi_right, axis=1), orientations=4, pixels_per_cell=(4, 4),
+	           cells_per_block=(2, 2), block_norm='L2-Hys', visualize=False)
+
+			initial_similarity = cosine_similarity([hog_left], [hog_right_flipped])
+			initial_similarity = initial_similarity[0][0]
+			
+		# print(f"initial similarity: {initial_similarity}")
+		if initial_similarity > 0.6:
+			central_line_points_processed.append(point)
+		else:
+			c_x = point.x - small_window_w
+			max_similarity = initial_similarity
+			best_match = Point(point.x, c_y)
+			while c_x < image_w - window_w:
+				l_x = c_x - small_window_w if c_x - small_window_w > 0 else point.x
+				r_x = c_x + small_window_w if c_x + small_window_w < image_w else image_w-small_window_w
+				
+				roi_left = spine_crop[c_y:c_y+window_h, l_x:l_x+small_window_w]
+				
+				roi_right = spine_crop[c_y:c_y+window_h, r_x:r_x+small_window_w]
+				
+				if roi_left.shape[1] < 5 or roi_right.shape[1] < 5:
+					similarity = 0
+				elif roi_left.shape[1] != roi_right.shape[1]:
+					similarity = 0
+				else:
+					hog_left = hog(roi_left, orientations=4, pixels_per_cell=(4, 4),
+			           cells_per_block=(2, 2), block_norm='L2-Hys', visualize=False)
+					hog_right = hog(np.flip(roi_right, axis=1), orientations=4, pixels_per_cell=(4, 4),
+			           cells_per_block=(2, 2), block_norm='L2-Hys', visualize=False)
+				
+					similarity = cosine_similarity([hog_left], [hog_right])
+					similarity = similarity[0][0]
+
+				if max_similarity < similarity:
+					max_similarity = similarity
+					best_match = Point((l_x+r_x+small_window_w)//2, c_y)
+				c_x += step_w
+			# print(f"max similarity: {max_similarity}")
+			# print("- - - "*5)
+			if max_similarity > initial_similarity:
+				central_line_points_processed.append(best_match)
+			else:
+				central_line_points_processed.append(point)
 		i += 1
-		# prev_x = curr_x
 
 	return central_line_points_processed
 
+
+def refine_central_line_dist(central_line_points, threshold) -> list[Point]:
+	# Iterates over a list with central line points and if the difference between x position of current and previous point
+	# is above threshold corrects the x position of the current point
+	print(f"Smooth {len(central_line_points)} central line points ...")
+	central_line_points_processed = []
+	k = 3
+	avg_x = 0
+	for point in central_line_points[:k]:
+		avg_x += point.x
+	avg_x //= k
+
+	for point in central_line_points[:k]:
+		diff = point.x - avg_x
+		if abs(diff) > threshold and diff > 0:
+			point.x -= diff//3
+		if abs(diff) > threshold and diff < 0:
+			point.x += diff//3
+		central_line_points_processed.append(point)
+
+	i = k
+	for point in central_line_points[k:-k]:
+
+		if i != k:
+			avg_up_x = 0
+			for prev_point in central_line_points[i-k:i]:
+				avg_up_x += prev_point.x
+			avg_up_x //= k
+		else:
+			avg_up_x = avg_x
+
+		avg_down_x = 0
+		for next_point in central_line_points[i:i+k]:
+			avg_down_x += next_point.x
+		avg_down_x //= k
+
+		diff = max(abs(point.x - avg_down_x), abs(point.x - avg_up_x))
+
+		if abs(diff) > threshold and diff > 0:
+			# point.x -= diff//2
+			point.x -= int(diff*0.66)
+		if abs(diff) > threshold and diff < 0:
+			# point.x += diff//2
+			point.x += int(diff*0.66)
+
+		central_line_points_processed.append(point)
+		i += 1
+
+	return central_line_points_processed

@@ -1,16 +1,18 @@
 import cv2
 import os
-import re 
+import re
+import math
 import numpy as np
 import pandas as pd
 import matplotlib
 matplotlib.use('Agg')
 from matplotlib import pyplot as plt
 import pydicom as dicom
+from scipy.ndimage import median_filter
 
 from io import BytesIO
 from pathlib import Path
-import preprocessing as pr 
+import preprocessing as pr
 import computation as compute
 from computation import Point, Line
 
@@ -45,7 +47,7 @@ def save_dicom(file_name: str, file_content: bytes) -> None:
     # dicom.filewriter.write_file(file_name, file_content, False)
     file_name = Path(file_name)
     dicom.dcmwrite(filename=file_name, dataset=dataset_to_write, write_like_original=True)
-    # TODO: change when pydicom version > 3.0.0 
+    # TODO: change when pydicom version > 3.0.0
     # dicom.dcmwrite(filename=file_name, dataset=dataset, enforce_file_format=True)
 
 
@@ -75,7 +77,7 @@ def anonymise_dicom_data(dataset: dicom.FileDataset) ->  dicom.FileDataset:
         dataset.SeriesTime = None
 
     return dataset
-    
+
 
 def read_all_images(image_directory):
 
@@ -131,11 +133,16 @@ def open_image_file(filename, image_directory):
         image_name = filename
         image_ext = 'png'
         ds = dicom.dcmread(filename_rel_path)
-        image_type =  ds.PhotometricInterpretation		# usually dicom x-ray is MONOCHROME2
+        image_type =  ds.PhotometricInterpretation        # usually dicom x-ray is MONOCHROME2
+
         if ds.pixel_array.any():
+            if image_type == 'MONOCHROME1':
+                px_data = 1 - ds.pixel_array
+            elif image_type == 'MONOCHROME2':
+                px_data = ds.pixel_array
             ### convert byte raw image data into uint8 in range [0,255]
             print("Converting byte raw data from dicom into uint8")
-            image_data = ds.pixel_array - np.min(ds.pixel_array)
+            image_data = px_data - np.min(px_data)
             image_data = image_data / np.max(image_data)
             image_data = (image_data * 255).astype(np.uint8)        
 
@@ -161,10 +168,9 @@ def process_image(filename, image_directory, results_directory) -> list:
     original_image_width = grey_image.shape[1]
     original_image_height = grey_image.shape[0]
 
-    if original_image_height > 1500:
-        scale_ratio = 0.2
-    else:
-        scale_ratio = 1
+    scale_ratio = 1 if original_image_height < 1500 else  0.2
+    algorithms_strength = "weak" if original_image_height <= 1000 else "strong"
+    print(f"Algorithm strength: {algorithms_strength}")
 
     image_height = int(original_image_height*scale_ratio)
     image_width = int(original_image_width*scale_ratio)
@@ -175,48 +181,46 @@ def process_image(filename, image_directory, results_directory) -> list:
 
     cv2.imwrite(os.path.join(results_directory,"{}_00-original_image.{}".format(str(image_name),str(image_ext))), image)
     
-    
     ### auto image enhancement for improving brightness and contrast - histogram stretching
-    ### not enough
-    clip_hist_percent = 15
+    clip_hist_percent = 7 if algorithms_strength == "strong" else 4
     enh_image, alpha, beta = pr.automatic_brightness_and_contrast(grey_image, clip_hist_percent=clip_hist_percent)
     cv2.imwrite(os.path.join(results_directory,"{}_01-enh-1_{}.{}".format(str(image_name),str(clip_hist_percent),str(image_ext))), enh_image)
-    
-    ### adaptive equalization for improving image contrast 
-    # clip_limit = 3
-    # tile_size_per = 0.46
-    # tile_size = (image_width//int(image_width*tile_size_per),image_height//int(image_height*tile_size_per))
-    # enh_image = pr.adaptive_equalization(grey_image, clip_limit=clip_limit, tile_size=tile_size)
-    # cv2.imwrite(os.path.join(results_directory,"{}_03-enh-1_{}.{}".format(str(image_name),str(tile_size),str(image_ext))), enh_image)
-    
-    ### Detecting spine ROI
-    sum_col, sum_row = pr.intensity_projection(enh_image)
-    spine_start, spine_end, col_values, min_max_row = pr.detect_spine(enh_image, sum_col, sum_row)
-    print("Cropped pos: {}-{}".format(spine_start, spine_end))
 
-    ### Plot intensity projection histograms and detected spine ROI
+    ### Denoising - apply strong bilateral filter
+    # d = 33
+    # sigma = 17
+    # enh_image = cv2.bilateralFilter(enh_image, d, sigma, sigma)
+    # cv2.imwrite(os.path.join(results_directory,"{}_02-bltr-{}-{}.{}".format(str(image_name),str(d),str(sigma),str(image_ext))), enh_image)
+
+    ### Detecting spine ROI by horizontal projection
+    sum_col, sum_row = pr.intensity_projection(enh_image)
+    spine_start, spine_end, col_values, min_max_row = pr.detect_spine(enh_image, sum_col, sum_row, algorithms_strength)
+    print(f"Cropped pos (cor, row): {spine_start}-{spine_end}")
+
+    ### Plot  intensity projection histograms and detected spine ROI
     fig = plt.figure()
     plt.suptitle("Intensity projection")
     ax1 = fig.add_subplot(121)
     ax2 = fig.add_subplot(122)
-    ax1.title.set_text('Vertical')
-    ax2.title.set_text('Horizontal')
+    ax1.title.set_text('Vertical projection')
+    ax2.title.set_text('Horizontal projection')
 
     plt.subplot(1, 2, 1)
     plt.bar(range(0,image_width), sum_col, align='edge', width=1.0, color='coral')
+    plt.bar(range(0,image_width), col_values, align='edge', width=1.0, color='lightcoral')
     plt.axvline(x=spine_start[0], color='cyan')
     plt.axvline(x=spine_end[0], color='red')
     plt.ylabel('Intensity' )
     plt.xlabel('Image width')
 
-
+    # image_height = spine_crop_enh.shape[0]
     plt.subplot(1, 2, 2)
     y_ax = np.arange(image_height)
     plt.barh(np.arange(image_height), sum_row, align='center', height=1.0, color='turquoise')
     plt.barh(np.arange(image_height), min_max_row, align='center', height=1.0, color='paleturquoise')
     ax = plt.gca()
     ax.invert_yaxis()
-    plt.axhline(y=spine_start[1], color='coral')
+    plt.axhline(y=spine_start[1], color='yellow')
     plt.axhline(y=spine_end[1], color='red')
     plt.ylabel('Image height')
     plt.xlabel('Intensity')
@@ -235,42 +239,114 @@ def process_image(filename, image_directory, results_directory) -> list:
     print("Cropped spine size: {}".format(spine_crop_grey.shape))
     cv2.imwrite(os.path.join(results_directory,"{}_02-spine-crop.{}".format(str(image_name),str(image_ext))), spine_crop_grey)
 
+    ### adaptive equalization for improving image contrast
+    clip_limit = 1
+    tile_size_per = 0.76
+    tile_size = (spine_width//int(spine_width*tile_size_per),spine_height//int(spine_height*tile_size_per))
+    spine_enh_image = pr.adaptive_equalization(spine_crop_enh, clip_limit=clip_limit, tile_size=tile_size)
+    cv2.imwrite(os.path.join(results_directory,"{}_02-spine-enh_{}_{}.{}".format(str(image_name),str(clip_limit),str(tile_size),str(image_ext))), spine_enh_image)
+
+    # ### auto image enhancement for improving brightness and contrast - histogram stretching
+    # clip_hist_percent = 5 if algorithms_strength == "strong" else 2
+    # spine_crop_enh, alpha, beta = pr.automatic_brightness_and_contrast(spine_crop_enh, clip_hist_percent=clip_hist_percent)
+    # cv2.imwrite(os.path.join(results_directory,"{}_02-spine-enh_{}.{}".format(str(image_name),str(clip_hist_percent),str(image_ext))), spine_crop_enh)
+
 
     ### Denoising - apply strong bilateral filter
     d = 15
     sigma = 115
+    # d = 1
+    # sigma = 5    
+    if algorithms_strength == "weak":
+        d = 1
+        sigma = 5
     spine_crop_blt = cv2.bilateralFilter(spine_crop_enh, d, sigma, sigma)
     cv2.imwrite(os.path.join(results_directory,"{}_03-bltr-{}-{}.{}".format(str(image_name),str(d),str(sigma),str(image_ext))), spine_crop_blt)
 
+    # spine_crop_blt = spine_crop_enh.copy()
+    # spine_crop_blt_weak = cv2.bilateralFilter(spine_crop_enh, 13, 65, 65)
+    spine_crop_blt_weak = cv2.bilateralFilter(spine_crop_enh, 13, 95, 95)
+    dx=1
+    dy=0
+    ksize = 3
+    ## when ddepth=-1 then the output image will have the same depth as the source
+    sobel_x = cv2.Sobel(spine_crop_blt_weak, ddepth=-1, dx=dx, dy=dy, ksize=ksize, scale=2)
+    # sobel_x = cv2.Scharr(spine_crop_blt, -1, dx=dx, dy=dy, scale=1)
+    cv2.imwrite(os.path.join(results_directory,"{}_05-sobel_x-{}-{}-{}.{}".format(str(image_name),str(dx),str(dy),str(ksize),str(image_ext))), sobel_x)
+
+    spine_crop_edges = cv2.addWeighted(spine_crop_blt, 0.7, sobel_x, 0.3, 0)
+    cv2.imwrite(os.path.join(results_directory,"{}_06-edge_ench.{}".format(str(image_name),str(image_ext))), spine_crop_edges)
+
+    ### adaptive equalization for improving image contrast
+    clip_limit = 3
+    # tile_size_per = 0.76
+    tile_size_per = 0.86 if algorithms_strength=="strong" else 0.5
+    tile_size = (image_width//int(image_width*tile_size_per),image_height//int(image_height*tile_size_per))
+    spine_crop_edges = pr.adaptive_equalization(spine_crop_edges, clip_limit=clip_limit, tile_size=tile_size)
+    cv2.imwrite(os.path.join(results_directory,"{}_07-enh-contrast_{}_{}.{}".format(str(image_name),str(clip_limit),str(tile_size),str(image_ext))), spine_crop_edges)
 
     ### Find the Spine central line points
-    central_line_points = compute.find_central_line(spine_crop_blt)
+    central_line_points = compute.find_central_line(spine_crop_edges)
     print(f"Number of central_line_points: {len(central_line_points)}")
     # Display found line over the cropped spine
+    point_radius = 3
     image_initial_clp = spine_crop.copy()
+    image_initial_clp=cv2.circle(image_initial_clp, central_line_points[0].as_tuple(), point_radius, (0,0,255), 1)
     for i in range(1, len(central_line_points)):
         point = central_line_points[i]
         prev_point = central_line_points[i-1]
-        image_initial_clp=cv2.line(image_initial_clp, prev_point.as_tuple(), point.as_tuple(), (0,0,255), 1)
+        # image_initial_clp=cv2.line(image_initial_clp, prev_point.as_tuple(), point.as_tuple(), (0,0,255), 1)
+        image_initial_clp=cv2.circle(image_initial_clp, point.as_tuple(), point_radius, (0,0,255), 1)
     cv2.imwrite(os.path.join(results_directory,"{}_09-initial_clp.{}".format(str(image_name),str(image_ext))), image_initial_clp)
 
-    ### Refine the set of central line points
-    # epsilon = 10
-    epsilon = 13*spine_width//100
-    central_line_points_processed = compute.refine_central_line(central_line_points, epsilon)
-    image_clp = spine_crop.copy()
-    # Display refined line over the cropped spine
-    for i in range(1, len(central_line_points_processed)):
-        point = central_line_points_processed[i]
-        prev_point = central_line_points_processed[i-1]
-        image_clp=cv2.line(image_clp, prev_point.as_tuple(), point.as_tuple(), (0,0,255), 1)
-    cv2.imwrite(os.path.join(results_directory,"{}_10-clp-{}.{}".format(str(image_name),str(epsilon),str(image_ext))), image_clp)
+    ### Refine the Spine central line points
+    from scipy.ndimage import median_filter
 
+
+    epsilon = int(spine_width*0.1) if algorithms_strength == "strong" else int(spine_width*0.13)
+    central_line_points_processed_1 = compute.refine_central_line_dist(central_line_points, epsilon)
+    # x_coord = [point.x for point in central_line_points]
+    # x_coord_processed = median_filter(x_coord, size=7)
+    # central_line_points_processed_1 = [Point(x, p.y) for x, p in zip(x_coord_processed, central_line_points)]
+    print(f"Refine with median filter {len(central_line_points_processed_1)} central_line_points")
+
+    image_clp_1 = spine_crop.copy()
+    image_clp_1 = cv2.circle(image_clp_1, central_line_points_processed_1[0].as_tuple(), point_radius, (0,0,255), 1)
+    for i in range(1, len(central_line_points_processed_1)):
+        point = central_line_points_processed_1[i]
+        image_clp_1=cv2.circle(image_clp_1, point.as_tuple(), point_radius, (0,0,255), 1) #BGR
+        
+    cv2.imwrite(os.path.join(results_directory,"{}_10-clp_1.{}".format(str(image_name),str(image_ext))), image_clp_1)
+
+
+    central_line_points_processed_2 = compute.refine_central_line_hog(central_line_points_processed_1, spine_enh_image)
+    print(f"Refine {len(central_line_points_processed_2)} central line points with HOG features")
+    # Display found line over the cropped spine
+    image_clp_2 = spine_crop.copy()
+    image_clp_2 = cv2.circle(image_clp_2, central_line_points_processed_2[0].as_tuple(), point_radius, (0,0,255), 1)
+    for i in range(1, len(central_line_points_processed_2)):
+        point = central_line_points_processed_2[i]
+        image_clp_2 = cv2.circle(image_clp_2, point.as_tuple(), point_radius, (0,0,255), 1) #BGR
+
+    cv2.imwrite(os.path.join(results_directory,"{}_10-clp_2.{}".format(str(image_name),str(image_ext))), image_clp_2)
+
+
+    x_coord = [point.x for point in central_line_points_processed_2]
+    x_coord_processed = median_filter(x_coord, size=3)
+    central_line_points_processed_4 = [Point(x, p.y) for x, p in zip(x_coord_processed, central_line_points_processed_2)]
+    print(f"Refine with median filter {len(central_line_points_processed_4)} central_line_points with epsilon {epsilon} ")
+
+    image_clp_4 = spine_crop.copy() 
+    image_clp_4 = cv2.circle(image_clp_4, central_line_points_processed_4[0].as_tuple(), point_radius, (0,0,255), 1)
+    for i in range(1, len(central_line_points_processed_4)):
+        point = central_line_points_processed_4[i]
+        image_clp_4=cv2.circle(image_clp_4, point.as_tuple(), point_radius, (0,0,255), 1) #BGR
+        
+    cv2.imwrite(os.path.join(results_directory,"{}_10-clp_4.{}".format(str(image_name),str(image_ext))), image_clp_4)
 
     ### Convert data from central line points to pandas dataframe and apply ewm (exponentially weighted moving) smoothing
-    df = pd.DataFrame(central_line_points_processed, columns =['x', 'y'])
-
-    alpha = 0.1		# smoothing factor; higher value means less weight to recent observations
+    df = pd.DataFrame(central_line_points_processed_4, columns =['x', 'y'])
+    alpha = 0.1        # smoothing factor; higher value means less weight to recent observations
     df_smoothed = df.ewm(alpha=alpha).mean()
     
     image_clp_smoothed = spine_crop.copy()
@@ -278,30 +354,32 @@ def process_image(filename, image_directory, results_directory) -> list:
         if idx > 1:
             point_1 = (int(df_smoothed['x'][idx-1]), int(df_smoothed['y'][idx-1])) 
             point_2 = (int(df_smoothed['x'][idx]), int(df_smoothed['y'][idx]))
-            
-            image_clp_smoothed=cv2.line(image_clp_smoothed, point_1, point_2, (0,0,255), 1)	# red
+            image_clp_smoothed=cv2.line(image_clp_smoothed, point_1, point_2, (0,0,255), 1)    # red
+
     cv2.imwrite(os.path.join(results_directory,"{}_12-smoothed_{}.{}".format(str(image_name),str(alpha),str(image_ext))), image_clp_smoothed)
 
     ### Smooth smoothed data
-    span = 15 		# alpha = 2/(span + 1), span >= 1
+    span = 15        # alpha = 2/(span + 1), span >= 1
     df_smoothed_1 = df_smoothed.ewm(span=span).mean()
-    image_clp_smoothed_2 = spine_crop.copy()		
+    image_clp_smoothed_2 = spine_crop.copy()        
     for idx in df_smoothed_1.index:
         if idx>1:
             point_1 = (int(df_smoothed_1['x'][idx-1]), int(df_smoothed_1['y'][idx-1])) 
             point_2 = (int(df_smoothed_1['x'][idx]), int(df_smoothed_1['y'][idx]))
-
             image_clp_smoothed_2=cv2.line(image_clp_smoothed_2, point_1, point_2, (0,0,255), 1)
     
-    cv2.imwrite(os.path.join(results_directory,"{}_13-smoothed-2_{}.{}".format(str(image_name),str(alpha),str(image_ext))), image_clp_smoothed_2)
+    cv2.imwrite(os.path.join(results_directory,"{}_13-smoothed-2_{}.{}".format(str(image_name),str(span),str(image_ext))), image_clp_smoothed_2)
 
-
+    n = len(df)
+    # smoothing = n - math.sqrt(2 * n)
+    smoothing = n + (math.sqrt(2 * n) )
     ### Find line extremums and angles
     # xx, yy, extremums_x, extremums_y, lines_1, lines_2, max_angles, max_angles_2 = compute.compute_cob_angles(
     xx, yy, extremums_x, extremums_y, max_angles = compute.compute_cob_angles(
         df_smoothed_1,
         xb=0, xe=spine_height,
-        spline_degree = 5
+        spline_degree = 3,
+        smoothing = smoothing
         )
 
     for ma in max_angles:
@@ -315,15 +393,14 @@ def process_image(filename, image_directory, results_directory) -> list:
         point_1 = (int(yy[i-1]), int(xx[i-1]))
         point_2 = (int(yy[i]), int(xx[i]))
         
-        end_line_image = cv2.line(end_line_image, point_1, point_2, (255,255,0), 1)	# BGR - cyan
+        end_line_image = cv2.line(end_line_image, point_1, point_2, (255,255,0), 1)    # BGR - cyan
 
     # Draw spine apices
     for i in range(len(extremums_x)):
         x = int(extremums_y[i])
         y = int(extremums_x[i])
         end_line_image = cv2.circle(end_line_image, (x, y), 4, (0,255,255), 2) # yellow
-        
-    cv2.imwrite(os.path.join(results_directory,"{}_14-apices_{}.{}".format(str(image_name),str(alpha),str(image_ext))), end_line_image)
+    cv2.imwrite(os.path.join(results_directory,"{}_14-apices_{}.{}".format(str(image_name),str(smoothing),str(image_ext))), end_line_image)
     
 
     # Plot apices, tangent lines and angle degrees
@@ -331,7 +408,7 @@ def process_image(filename, image_directory, results_directory) -> list:
     color_list_1 = ['red', 'green', 'gold', 'cyan', 'dodgerblue', 'violet', 'tomato']
     color_list_1 += color_list_1
     
-    # plt.scatter(ys, xs, **{"color": "cyan", "marker": "."}, label="original")
+    # plt.scatter(xs, ys, **{"color": "cyan", "marker": "."}, label="original")
     plt.scatter(
         extremums_y, extremums_x, **{"color": "orange", "marker": "o"}, label="Extremums"
     )
@@ -341,7 +418,7 @@ def process_image(filename, image_directory, results_directory) -> list:
     # Draw tangent lines and angle degrees over cropped spine image
     end_line_image5 = end_line_image.copy()
     # BGR: rgb - cmyk
-    colors=((0,0,255), (0,255,255), (255,0,255), (0,0,125), (0,0,255), (255,0,255), (0,255,255), (0,0,125))
+    colors=((0,0,255), (0,255,255), (255,0,255), (0,0,125), (0,0,255), (255,0,255), (0,255,255), (0,0,125), (0,0,255), (0,255,255), (255,0,255), (0,0,125), (0,0,255), (255,0,255), (0,255,255), (0,0,125))
     i = 0
     n = len(max_angles) if len(max_angles) < 5 else 10
     for element in max_angles[:n]:

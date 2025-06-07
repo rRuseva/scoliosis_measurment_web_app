@@ -40,7 +40,6 @@
                 <h5 class="my-2 text-start">{{i}}: Cob angle at apex: {{apices[i]}}: &emsp;{{cob_angles[i]}}&deg</h5>
                 {% endfor %}
             </div>
-            <!-- <div class="col-sm-8 "> -->
             {% for image_name, image_url in images %}
                 {% if image_name.find('tangents.png') > 0 or image_name.find('cob.png') > 0  %}
                 <div class="col-sm-4 justify-content-center">
@@ -50,7 +49,6 @@
                 </div>
                 {% endif %}
             {% endfor %}
-            <!-- </div> -->
         </div>
         <div class="row justify-content-center py-4">
             {% for image_name, image_url in images %}

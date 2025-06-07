@@ -72,82 +72,78 @@ def intensity_projection(grey_image):
     ### Calculate horizontal intensity projection
     sum_row = cv2.reduce(grey_image, 1, cv2.REDUCE_SUM, dtype=cv2.CV_32S)
     sum_row = sum_row.flat[:]
-    
     return sum_col, sum_row
 
-    
+
 # Calculating spine ROI ###
-def detect_spine(image, sum_col, sum_row):
+def detect_spine(image, sum_col, sum_row, strenght):
     image_width = image.shape[1]
     image_height = image.shape[0]
 
-    ### Finding maximum peak of the vertical intensity projection
+    ### Finding left and right border of spine ROI by the maximum peak of vertical intensity projection
     max_col_value = np.max(sum_col)
     mean_col_value = np.mean(sum_col, dtype=int)
-    
+    max_col_idx = np.argmax(sum_col)
     # Finds columns around column with maximum intensity 
     # these are the columns with the head, spine and sacrum
-    eps_col = mean_col_value//2
-    # eps_col = 5*image_width//100
-    # eps_col = 0
+    eps_col = int(mean_col_value*0.42) if strenght=="strong" else int(mean_col_value*0.55)
     col_max_values_idx = np.where(sum_col >= max_col_value - eps_col)
-    np.append(col_max_values_idx[0], np.where(sum_col <= max_col_value + eps_col)[0] )
 
-    # col_max_values_idx = np.where(sum_col >= mean_col_value - eps_col)
-    # np.append(col_max_values_idx[0], np.where(sum_col <= mean_col_value + eps_col)[0] )
-
+    # col_max_values_idx indecies might not be consequitive
+    # therefore the points of interest are the start column and the end column of
+    # longest sequence with non zero elements
     col_max_values = np.zeros(sum_col.size, dtype=int)
     col_max_values[col_max_values_idx[0]] = sum_col[col_max_values_idx[0]]
 
-    ### Finding minimum and maximum peaks of horizontal projection
-    eps_row = 5*image_height//100
-    min_max_row = np.zeros(sum_row.size, dtype=int)
-    min_row_idx = np.argmin(sum_row)
-    max_row_idx = np.argmax(sum_row[len(sum_row)//2:])
-    max_row_idx += len(sum_row)//2
-
-    # print("min_row_idx:", min_row_idx)
-    # print("image_height//3", image_height//3)
-    if min_row_idx > image_height//3: 
-        min_row_idx = 0
-        min_max_row[min_row_idx:min_row_idx+eps_row] = sum_row[min_row_idx:min_row_idx+eps_row]
-    else:
-        min_max_row[min_row_idx-eps_row:min_row_idx+eps_row] = sum_row[min_row_idx-eps_row:min_row_idx+eps_row]
-    # print("min_row_idx:", min_row_idx)
-    # min_max_row[min_row_idx-eps_row:min_row_idx+eps_row] = sum_row[min_row_idx-eps_row:min_row_idx+eps_row]
-
-    if max_row_idx < 2*image_height//3:
-        # max_row_idx = max_row_idx - eps_row
-        max_row_idx = image_height - eps_row
-    else:
-        max_row_idx =  max_row_idx-2*eps_row
-    min_max_row[max_row_idx-eps_row:max_row_idx+eps_row] = sum_row[max_row_idx-eps_row:max_row_idx+eps_row]
-
-    
     # Finding starting index of vert_values of interest (values different from 0)
     idx_pairs = np.where(np.diff(np.hstack(([False], col_max_values != 0, [False]))))[0].reshape(-1,2)
-    # print(idx_pairs)
     # Finding longest sequence of values different than 0
     longest_seq = idx_pairs[np.diff(idx_pairs).argmax()]
-    # print(longest_seq[1])
+
     
-    # spine_start = (max_col_idx-eps_v,min_row_idx-eps_row)
-    # min_row_idx = np.argmin(sum_row)
-    spine_start = (longest_seq[0], min_row_idx)
-    spine_end = ( longest_seq[1], max_row_idx)
-    # spine_end = ( longest_seq[1], image_height)
-    # image_spine = cv2.rectangle(grey_image, spine_start,spine_end, (0,255,0), 5)
-    
-    # cv2.imshow("detected spine image", image_spine)
-    return spine_start, spine_end, col_max_values, min_max_row
+    ### Finding upper and bottom border of spine ROI by the peaks of horizontal projection
+    eps_row = 5*image_height//100
+    half_rows_len =  len(sum_row)//2
+    min_max_row = np.zeros(sum_row.size, dtype=int)
+    # minimum in the first half of the horizontal projection - neck
+    min_row_up_idx = np.argmin(sum_row[:half_rows_len])
+    # Find the minimum and maximum peaks in the second half of the image
+    # add up the indexes from the first hapf of the image
+    max_row_down_idx = np.argmax(sum_row[half_rows_len:]) + half_rows_len
+    min_row_down_idx = np.argmin(sum_row[half_rows_len:]) + half_rows_len
+
+    # refine upper border
+    if min_row_up_idx > image_height//3:
+        min_row_up_idx = 0
+        min_max_row[min_row_up_idx:min_row_up_idx+eps_row] = sum_row[min_row_up_idx:min_row_up_idx+eps_row]
+    else:
+        min_max_row[min_row_up_idx-eps_row:min_row_up_idx+eps_row] = sum_row[min_row_up_idx-eps_row:min_row_up_idx+eps_row]
+
+    if max_row_down_idx < int(0.66*image_height):
+        max_row_down_idx = image_height - eps_row
+    else:
+        max_row_down_idx =  max_row_down_idx-int(3*eps_row)
+    min_max_row[max_row_down_idx-eps_row:max_row_down_idx+eps_row] = sum_row[max_row_down_idx-eps_row:max_row_down_idx+eps_row]
     
 
-    # return image_spine
+    min_max_row[max_row_down_idx-eps_row:max_row_down_idx+eps_row] = sum_row[max_row_down_idx-eps_row:max_row_down_idx+eps_row]
+
+    # start / end - (col, row)
+    spine_start = (longest_seq[0], min_row_up_idx)
+    spine_end = (longest_seq[1], max_row_down_idx)
+
+    diff_eps = image_width//20 if strenght=="strong" else image_width//3
+    diff = int(spine_end[0] - spine_start[0])
+    if  diff < 60 :
+        print("found spine start and end are not ok")
+        spine_start = (image_width//2-50, min_row_up_idx)
+        spine_end = (image_width//2+50, max_row_down_idx)
+    return spine_start, spine_end, col_max_values, min_max_row
 
 
 ### Uses Fourier transformation to filter high frequency noise
 def FF_denoising(image, r=8, hpf=0):
-    print("Runing FF_denoising with r={} and hpf={} \n".format(r, hpf))
+    print("Running FF_denoising with r={} and hpf={} \n".format(r, hpf))
     image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     image = np.float32(image)
     dft = cv2.dft(image, flags=cv2.DFT_COMPLEX_OUTPUT)
@@ -176,7 +172,7 @@ def FF_denoising(image, r=8, hpf=0):
     img_back = cv2.magnitude(img_back[:, :, 0], img_back[:, :, 1])
 
     
-    ### reconstruct and normalize image values
+    ### Reconstruct and normalize image values
     min, max =np.amin(image, (0,1)), np.amax(image, (0,1))
     min, max = np.amin(img_back, (0,1)), np.amax(img_back, (0,1))
     img_back = cv2.normalize(img_back,None, alpha=0, beta=252, norm_type=cv2.NORM_MINMAX,dtype=cv2.CV_8U)
@@ -297,3 +293,30 @@ def kmean(image, k=3):
     segmented_image = segmented_image.reshape(image.shape)
 
     return segmented_image
+
+
+# Peak Signal-to-Noise Ratio - metric to evaluate noise in processed image
+# this method is using mean squared error
+# returned PSNR value is in dB
+def compute_psnr(original_image, image):
+    diff = np.subtract(original_image, image)
+    squared_diff =  np.square(diff)
+    mse = np.mean(squared_diff)
+
+    # compute PSNR as: 20*log10(MAX)-10*log10(MSE)
+    # where MAX is the maximum px value 
+    max_px_value = 255
+    psnr = 20*np.log10(max_px_value) - 10*np.log10(mse)
+
+    return psnr
+
+
+# Signal-to-Noise Ratio - metric for evaluate noise in processed image
+# smaller snr -> less noise
+# larger snr -> more noise
+def compute_snr(image):
+    mean = np.mean(image)
+    stdev =  np.std(image)
+    snr = mean / stdev
+
+    return snr
