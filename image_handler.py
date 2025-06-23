@@ -15,6 +15,7 @@ from pathlib import Path
 import preprocessing as pr
 import computation as compute
 from computation import Point, Line
+from scipy.ndimage import median_filter
 
 def validate_is_dicom(file_content: bytes) -> bool:
     """Gets a byte type object and checks if the content from position 128 till 132 
@@ -271,7 +272,6 @@ def process_image(filename, image_directory, results_directory) -> list:
     ksize = 3
     ## when ddepth=-1 then the output image will have the same depth as the source
     sobel_x = cv2.Sobel(spine_crop_blt_weak, ddepth=-1, dx=dx, dy=dy, ksize=ksize, scale=2)
-    # sobel_x = cv2.Scharr(spine_crop_blt, -1, dx=dx, dy=dy, scale=1)
     cv2.imwrite(os.path.join(results_directory,"{}_05-sobel_x-{}-{}-{}.{}".format(str(image_name),str(dx),str(dy),str(ksize),str(image_ext))), sobel_x)
 
     spine_crop_edges = cv2.addWeighted(spine_crop_blt, 0.7, sobel_x, 0.3, 0)
@@ -300,23 +300,17 @@ def process_image(filename, image_directory, results_directory) -> list:
     cv2.imwrite(os.path.join(results_directory,"{}_09-initial_clp.{}".format(str(image_name),str(image_ext))), image_initial_clp)
 
     ### Refine the Spine central line points
-    from scipy.ndimage import median_filter
-
-
     epsilon = int(spine_width*0.1) if algorithms_strength == "strong" else int(spine_width*0.13)
-    central_line_points_processed_1 = compute.refine_central_line_dist(central_line_points, epsilon)
-    # x_coord = [point.x for point in central_line_points]
-    # x_coord_processed = median_filter(x_coord, size=7)
-    # central_line_points_processed_1 = [Point(x, p.y) for x, p in zip(x_coord_processed, central_line_points)]
-    print(f"Refine with median filter {len(central_line_points_processed_1)} central_line_points")
+    central_line_points_processed_1 = compute.refine_central_line_avg(central_line_points, epsilon)
 
+    print(f"Refine with averaging filter {len(central_line_points_processed_1)} central_line_points")
     image_clp_1 = spine_crop.copy()
     image_clp_1 = cv2.circle(image_clp_1, central_line_points_processed_1[0].as_tuple(), point_radius, (0,0,255), 1)
     for i in range(1, len(central_line_points_processed_1)):
         point = central_line_points_processed_1[i]
         image_clp_1=cv2.circle(image_clp_1, point.as_tuple(), point_radius, (0,0,255), 1) #BGR
         
-    cv2.imwrite(os.path.join(results_directory,"{}_10-clp_1.{}".format(str(image_name),str(image_ext))), image_clp_1)
+    cv2.imwrite(os.path.join(results_directory,"{}_10-clp_1_avg.{}".format(str(image_name),str(image_ext))), image_clp_1)
 
 
     central_line_points_processed_2 = compute.refine_central_line_hog(central_line_points_processed_1, spine_enh_image)
@@ -328,7 +322,7 @@ def process_image(filename, image_directory, results_directory) -> list:
         point = central_line_points_processed_2[i]
         image_clp_2 = cv2.circle(image_clp_2, point.as_tuple(), point_radius, (0,0,255), 1) #BGR
 
-    cv2.imwrite(os.path.join(results_directory,"{}_10-clp_2.{}".format(str(image_name),str(image_ext))), image_clp_2)
+    cv2.imwrite(os.path.join(results_directory,"{}_10-clp_2_hog.{}".format(str(image_name),str(image_ext))), image_clp_2)
 
 
     x_coord = [point.x for point in central_line_points_processed_2]
@@ -342,7 +336,7 @@ def process_image(filename, image_directory, results_directory) -> list:
         point = central_line_points_processed_4[i]
         image_clp_4=cv2.circle(image_clp_4, point.as_tuple(), point_radius, (0,0,255), 1) #BGR
         
-    cv2.imwrite(os.path.join(results_directory,"{}_10-clp_4.{}".format(str(image_name),str(image_ext))), image_clp_4)
+    cv2.imwrite(os.path.join(results_directory,"{}_10-clp_4_median.{}".format(str(image_name),str(image_ext))), image_clp_4)
 
     ### Convert data from central line points to pandas dataframe and apply ewm (exponentially weighted moving) smoothing
     df = pd.DataFrame(central_line_points_processed_4, columns =['x', 'y'])

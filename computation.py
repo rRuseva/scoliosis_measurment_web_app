@@ -341,7 +341,7 @@ def refine_central_line_hog(central_line_points, spine_crop: np.ndarray) -> list
 	return central_line_points_processed
 
 
-def refine_central_line_dist(central_line_points, threshold) -> list[Point]:
+def refine_central_line_avg(central_line_points, threshold) -> list[Point]:
 	# Iterates over a list with central line points and if the difference between x position of current and previous point
 	# is above threshold corrects the x position of the current point
 	print(f"Smooth {len(central_line_points)} central line points ...")
