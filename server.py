@@ -102,12 +102,12 @@ def upload_file():
             # file_url = url_for('get_temp_file', filename=filename)
             if is_allowed:
                 result = ih.process_image(filename, app.config['UPLOAD_FOLDER'], app.config['TEMP_FOLDER'])
-                result_cob_angles = [round(res[2], 5) for res in result ]
-                result_apex = [(round(res[0], 5) , round(res[1], 5) ) for res in result ]
+                result_cob_angles = [round(res[2], 3) for res in result ]
+                result_apex = [(round(res[0], 2) , round(res[1], 2) ) for res in result ]
 
-                for filename in os.listdir(app.config['TEMP_FOLDER']):
-                    result_images.append( (filename, url_for('get_processed', filename=filename)))
-                    # print(filename)
+                for result_filename in os.listdir(app.config['TEMP_FOLDER']):
+                    result_images.append( (result_filename, url_for('get_processed', filename=result_filename)))
+                    print(result_filename)
                 result_images.sort()      
         else:
             file_url=None

@@ -37,8 +37,13 @@ img {
     text-align: center;
     display: block;
     font-style: italic;
+    /* width: auto;
+    height: 100%; */
 }
 
+#results_title {
+    text-align: center;
+}
 .container.gallery-container {
     background-color: #E0E0E0;
     color: #35373a;

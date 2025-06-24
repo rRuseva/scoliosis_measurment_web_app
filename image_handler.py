@@ -198,7 +198,7 @@ def process_image(filename, image_directory, results_directory) -> list:
     spine_start, spine_end, col_values, min_max_row = pr.detect_spine(enh_image, sum_col, sum_row, algorithms_strength)
     print(f"Cropped pos (cor, row): {spine_start}-{spine_end}")
 
-    ### Plot  intensity projection histograms and detected spine ROI
+    ### Plot intensity projection histograms and detected spine ROI
     fig = plt.figure()
     plt.suptitle("Intensity projection")
     ax1 = fig.add_subplot(121)
@@ -214,9 +214,8 @@ def process_image(filename, image_directory, results_directory) -> list:
     plt.ylabel('Intensity' )
     plt.xlabel('Image width')
 
-    # image_height = spine_crop_enh.shape[0]
+
     plt.subplot(1, 2, 2)
-    y_ax = np.arange(image_height)
     plt.barh(np.arange(image_height), sum_row, align='center', height=1.0, color='turquoise')
     plt.barh(np.arange(image_height), min_max_row, align='center', height=1.0, color='paleturquoise')
     ax = plt.gca()
@@ -227,6 +226,8 @@ def process_image(filename, image_directory, results_directory) -> list:
     plt.xlabel('Intensity')
     fig.tight_layout(pad=1.0)
 
+    fig.set_figwidth(int(image_width*2.5)//100)
+    fig.set_figheight(image_height//100)
     plt.savefig(os.path.join(results_directory,"{}_02-intensity_projection.{}".format(str(image_name),"png")))
     plt.clf()
 
@@ -286,7 +287,7 @@ def process_image(filename, image_directory, results_directory) -> list:
     cv2.imwrite(os.path.join(results_directory,"{}_07-enh-contrast_{}_{}.{}".format(str(image_name),str(clip_limit),str(tile_size),str(image_ext))), spine_crop_edges)
 
     ### Find the Spine central line points
-    central_line_points = compute.find_central_line(spine_crop_edges)
+    central_line_points = compute.find_central_line(spine_crop_edges, algorithms_strength)
     print(f"Number of central_line_points: {len(central_line_points)}")
     # Display found line over the cropped spine
     point_radius = 3
@@ -313,7 +314,7 @@ def process_image(filename, image_directory, results_directory) -> list:
     cv2.imwrite(os.path.join(results_directory,"{}_10-clp_1_avg.{}".format(str(image_name),str(image_ext))), image_clp_1)
 
 
-    central_line_points_processed_2 = compute.refine_central_line_hog(central_line_points_processed_1, spine_enh_image)
+    central_line_points_processed_2 = compute.refine_central_line_hog(central_line_points_processed_1, spine_enh_image, algorithms_strength)
     print(f"Refine {len(central_line_points_processed_2)} central line points with HOG features")
     # Display found line over the cropped spine
     image_clp_2 = spine_crop.copy()
@@ -438,15 +439,20 @@ def process_image(filename, image_directory, results_directory) -> list:
 
     cv2.imwrite(os.path.join(results_directory,"{}_15-cob.{}".format(str(image_name),str(image_ext))), end_line_image5)
 
-    plt.ylim([0, spine_height])  # range from 0 to crop_width
-    plt.xlim([0, spine_width]) 
-    # plt.xlim([yy[0]-spine_width//4, yy[-1]+spine_width//4])  # range from 0 to crop_height
+    # Arrange spine curve plot
+    plt.title("Spine curve and Cob angles")
+    plt.ylabel('Image height')
+    plt.xlabel('Image width')
+    
+    plt.ylim([-15, spine_height])  # range from 0 to crop_width
+    plt.xlim([0, spine_width])
     
     ax = plt.gca()
     ax.invert_yaxis()
 
-    # plt.axis("equal")
     plt.legend(loc="best", fancybox=True, shadow=True)
+    fig.set_figheight(int(spine_height*1.3)//100)
+    fig.set_figwidth(int(spine_width*4)//100)
     plt.savefig(os.path.join(results_directory,"{}_14-tangents.{}".format(str(image_name),"png")))
     plt.clf()
     plt.close()

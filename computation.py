@@ -220,7 +220,7 @@ def compute_angle_from_slopes(ma: np.ndarray, mb: np.ndarray, in_rad: bool) -> f
     return angle_rad
 
 
-def find_central_line(spine_crop: np.ndarray) : #-> list[Point]:
+def find_central_line(spine_crop: np.ndarray, algorithms_strength:str) : #-> list[Point]:
 	# Slide a window with size (window_w, window_h) over the image with horizontal step step_w
 	# and vertical step step_h. At each step calculate the sum of pixel intensities. 
 	# At each row identify the window with tha maximum sum and save the central point.
@@ -228,7 +228,7 @@ def find_central_line(spine_crop: np.ndarray) : #-> list[Point]:
 
 	print("Finding central line points...")
 	image_h, image_w = spine_crop.shape
-	window_w = int(image_w*0.4)
+	window_w = int(image_w*0.4) if algorithms_strength == "strong" else int(image_w*0.33)
 	window_h = 16
 	step_w = 1
 	step_h = 6
@@ -266,10 +266,10 @@ def find_central_line(spine_crop: np.ndarray) : #-> list[Point]:
 
 
 # refine based on hog features of two mirrored rectangles on both sides of central line point
-def refine_central_line_hog(central_line_points, spine_crop: np.ndarray) -> list[Point]:
+def refine_central_line_hog(central_line_points, spine_crop: np.ndarray, algorithms_strength: str) -> list[Point]:
 	print(f"Refine {len(central_line_points)} central line points via HOG features...")
 	image_h, image_w = spine_crop.shape
-	window_w = int(image_w*0.4)
+	window_w = int(image_w*0.4) if algorithms_strength == "strong" else int(image_w*0.33)
 	window_w = window_w - 1 if (window_w % 2 != 0) else window_w
 	small_window_w = window_w//2
 	small_window_w = small_window_w - 1 if small_window_w % 2 != 0 else small_window_w
@@ -297,7 +297,7 @@ def refine_central_line_hog(central_line_points, spine_crop: np.ndarray) -> list
 
 			initial_similarity = cosine_similarity([hog_left], [hog_right_flipped])
 			initial_similarity = initial_similarity[0][0]
-			
+
 		# print(f"initial similarity: {initial_similarity}")
 		if initial_similarity > 0.6:
 			central_line_points_processed.append(point)
