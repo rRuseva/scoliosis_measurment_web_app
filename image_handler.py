@@ -243,7 +243,7 @@ def process_image(filename, image_directory, results_directory) -> list:
 
     ### adaptive equalization for improving image contrast
     clip_limit = 1
-    tile_size_per = 0.76
+    tile_size_per = 0.76 if algorithms_strength == "strong" else 0.16
     tile_size = (spine_width//int(spine_width*tile_size_per),spine_height//int(spine_height*tile_size_per))
     spine_enh_image = pr.adaptive_equalization(spine_crop_enh, clip_limit=clip_limit, tile_size=tile_size)
     cv2.imwrite(os.path.join(results_directory,"{}_02-spine-enh_{}_{}.{}".format(str(image_name),str(clip_limit),str(tile_size),str(image_ext))), spine_enh_image)
@@ -260,8 +260,8 @@ def process_image(filename, image_directory, results_directory) -> list:
     # d = 1
     # sigma = 5    
     if algorithms_strength == "weak":
-        d = 1
-        sigma = 5
+        d = 5
+        sigma = 13
     spine_crop_blt = cv2.bilateralFilter(spine_crop_enh, d, sigma, sigma)
     cv2.imwrite(os.path.join(results_directory,"{}_03-bltr-{}-{}.{}".format(str(image_name),str(d),str(sigma),str(image_ext))), spine_crop_blt)
 
@@ -281,7 +281,7 @@ def process_image(filename, image_directory, results_directory) -> list:
     ### adaptive equalization for improving image contrast
     clip_limit = 3
     # tile_size_per = 0.76
-    tile_size_per = 0.86 if algorithms_strength=="strong" else 0.5
+    tile_size_per = 0.86 if algorithms_strength=="strong" else 0.4
     tile_size = (image_width//int(image_width*tile_size_per),image_height//int(image_height*tile_size_per))
     spine_crop_edges = pr.adaptive_equalization(spine_crop_edges, clip_limit=clip_limit, tile_size=tile_size)
     cv2.imwrite(os.path.join(results_directory,"{}_07-enh-contrast_{}_{}.{}".format(str(image_name),str(clip_limit),str(tile_size),str(image_ext))), spine_crop_edges)
@@ -311,7 +311,7 @@ def process_image(filename, image_directory, results_directory) -> list:
         point = central_line_points_processed_1[i]
         image_clp_1=cv2.circle(image_clp_1, point.as_tuple(), point_radius, (0,0,255), 1) #BGR
         
-    cv2.imwrite(os.path.join(results_directory,"{}_10-clp_1_avg.{}".format(str(image_name),str(image_ext))), image_clp_1)
+    # cv2.imwrite(os.path.join(results_directory,"{}_10-clp_1_avg.{}".format(str(image_name),str(image_ext))), image_clp_1)
 
 
     central_line_points_processed_2 = compute.refine_central_line_hog(central_line_points_processed_1, spine_enh_image, algorithms_strength)
@@ -363,7 +363,7 @@ def process_image(filename, image_directory, results_directory) -> list:
             point_2 = (int(df_smoothed_1['x'][idx]), int(df_smoothed_1['y'][idx]))
             image_clp_smoothed_2=cv2.line(image_clp_smoothed_2, point_1, point_2, (0,0,255), 1)
     
-    cv2.imwrite(os.path.join(results_directory,"{}_13-smoothed-2_{}.{}".format(str(image_name),str(span),str(image_ext))), image_clp_smoothed_2)
+    # cv2.imwrite(os.path.join(results_directory,"{}_13-smoothed-2_{}.{}".format(str(image_name),str(span),str(image_ext))), image_clp_smoothed_2)
 
     n = len(df)
     # smoothing = n - math.sqrt(2 * n)
