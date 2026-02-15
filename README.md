@@ -1,2 +1,5 @@
-# web_app_for_scoliosis_measurement
-Python/ Flask web application for measuring spine deformation know as scoliosis
+# Scoliosis measurement web app
+
+Scoliosis is a common musculoskeletal disorder characterized by a lateral curvature of the spine outside the sagittal plane, often accompanied by vertebral rotation, resulting in an "S"- or "C"-shaped spinal deformity. Diagnosis is established through anterior posterior radiograph, where the Cobb angle is measured. This angle is a primary quantitative measure of the curvature severity. However, manual measurement of this angle is prone to subjective errors and interobserver variability. 
+
+This **Python / Flask web application** is a result of master thesis study which aim is to develop an **automated tool for measuring the Cobb angle**, intended to assist medical specialists by reducing the subjective factor and potential errors. The study explores and analyzes various methods and approaches within the field of digital image processing, emphasizing on classical techniques and algorithms to address the following primary tasks - locating the spine, identifying the central spinal line and calculating the Cobb angle for each scoliotic curvature. This is achieved through several sequential steps, forming an image processing pipeline that transforms the raw radiographic data into quantitative measurement of the curvature severity. A crucial part of each step is image preprocessing, which involves adjusting brightness, contrast, and noise levels in order to achieve more accurate results. 
