@@ -1,5 +1,28 @@
-# Scoliosis measurement web app
+# 🩻 Scoliosis Measurement Web Application
 
-Scoliosis is a common musculoskeletal disorder characterized by a lateral curvature of the spine outside the sagittal plane, often accompanied by vertebral rotation, resulting in an "S"- or "C"-shaped spinal deformity. Diagnosis is established through anterior posterior radiograph, where the Cobb angle is measured. This angle is a primary quantitative measure of the curvature severity. However, manual measurement of this angle is prone to subjective errors and interobserver variability. 
+A Python application for analyzing spinal radiographs via image processing thenniques and automatically estimating the Cobb angle used in scoliosis assessment.
 
-This **Python / Flask web application** is a result of master thesis study which aim is to develop an **automated tool for measuring the Cobb angle**, intended to assist medical specialists by reducing the subjective factor and potential errors. The study explores and analyzes various methods and approaches within the field of digital image processing, emphasizing on classical techniques and algorithms to address the following primary tasks - locating the spine, identifying the central spinal line and calculating the Cobb angle for each scoliotic curvature. This is achieved through several sequential steps, forming an image processing pipeline that transforms the raw radiographic data into quantitative measurement of the curvature severity. A crucial part of each step is image preprocessing, which involves adjusting brightness, contrast, and noise levels in order to achieve more accurate results. 
+The project was developed as part of my Master's thesis and explores how classical digital image processing and numerical methods can be combined to extract the shape of the spine from an X-ray image and derive quantitative measurements of spinal curvature.
+
+The image-processing pipeline is integrated into a Flask web application, allowing radiographs to be uploaded, processed, and the resulting measurements visualized through a web interface.
+
+## Project Motivation
+
+Scoliosis is characterized by an abnormal lateral curvature of the spine. One of the primary quantitative measurements used when evaluating scoliosis is the Cobb angle, which is traditionally determined manually from spinal radiographs. Manual measurements depend on the selection of anatomical reference points and can therefore be affected by observer variability.
+
+The goal of this project was to investigate classical computer vision and image processing techniques for building an automated measurement pipeline capable of:
+
++ locating the spinal region in a radiograph
++ extracting a representation of the spinal centerline
++ analyzing the geometry of the detected spinal curve
++ identifying individual scoliotic curvatures
++ estimating their Cobb angles
++ visualizing the detected curve and measurements
+
+**Note:** This project is an academic prototype developed for research and educational purposes and is not intended for clinical use.
+
+## Tech stack
+- Backend: Python, Flask, Flask-WTF, Waitress (WSGI server)
+- Image processing: OpenCV, scikit-image, SciPy, NumPy
+- Medical imaging: pydicom, python-gdcm (DICOM reading/writing & anonymization)
+- Data & visualization: pandas, matplotlib
